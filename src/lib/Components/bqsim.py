@@ -213,6 +213,10 @@ class BGQsim(Simulator):
         
         self.batch = kwargs.get("batch", False)
             
+        # geometry and slowdow args
+        self.geometry = kwargs.get("geometry", False)
+        self.slowdown = kwargs.get("slowdown", False)
+        
 ####----print some configuration            
         if self.wass_scheme:
             print "walltime aware job allocation enabled, scheme = ", self.wass_scheme
@@ -683,12 +687,13 @@ class BGQsim(Simulator):
         #determine whether the job is going to fail before completion
         location = newattr['location']
         duration = jobspec['remain_time']
-        
+
         # change duration time based on slowdown
-        current_shape = [1, 1, 1]
-        best_shape = [1, 1, 1]
-        slowdown = self.get_slowdown(current_shape, best_shape)
-        duration *= slowdown
+        if self.slowdown:
+            row, inter_row, inter_rack_pair = get_dim(self._partitions[location[0]])
+            nodes = self._partitions[location[0]].size
+            slowdown = self.get_slowdown(inter_rack_pair, inter_row, row, nodes)
+            duration = duration * ( 1 + slowdown )
         
         end = start + duration
         updates['end_time'] = end
@@ -800,14 +805,14 @@ class BGQsim(Simulator):
                 # let's check the impact on partitions that would become blocked            
                 score = 0
                 
-                # the lower the score, more compact the block is, the better performance the app may benefit
-                #score = self.get_partition_dim_accu(partition)
-                #print score
-                
-                # minimize the fragmentaions, least blocked
-                for p in partition.parents:
-                    if self.cached_partitions[p].state == "idle" and self.cached_partitions[p].scheduled:
-                        score += 1
+                if self.geometry:
+                    # the lower the score, more compact the block is, the better performance the app may benefit
+		    score = self.get_partition_dim_accu(partition)                
+                else:
+                    # minimize the fragmentaions, least blocked
+		    for p in partition.parents:
+                        if self.cached_partitions[p].state == "idle" and self.cached_partitions[p].scheduled:
+                            score += 1
                         
                 # hybrid 
                 #if utilization < threshhold:
@@ -826,7 +831,7 @@ class BGQsim(Simulator):
                 #record equavalent partitions that have same best score
                 elif score == best_score:
                     best_partition_list.append(partition)
-        
+                            
         if self.walltime_aware_cons and len(best_partition_list) > 1:
             #print "best_partition_list=", [part.name for part in best_partition_list]
             #walltime aware job allocation (conservative)         
@@ -1784,5 +1789,13 @@ class BGQsim(Simulator):
         #print partition.name, "%d * %d * %d" % (row, inter_row, inter_rack_pair)
         return get_dim_accu(row, inter_row, inter_rack_pair)
     
-    def get_slowdown(self, current_shape, best_shape):
+    def get_slowdown(self, inter_rack_pair, inter_row, row, nodes):
+        if nodes == 8192:
+            if inter_rack_pair == 4 and inter_row == 2 and row == 2:
+                return -(float(random.randint(10,50))/100)
+        
+        if nodes == 4096:
+            if inter_rack_pair == 4 and inter_row == 1 and row == 2:
+                return -(float(random.randint(10,50))/100)
+        
         return 1
