@@ -191,7 +191,7 @@ if __name__ == "__main__":
     p.add_option("-g", "--geometry", dest="geometry", action ="store_true", default = False,
         help="Using topology-aware scheduling considering block's geometry")
     p.add_option("-l", "--slowdown", dest="slowdown", action ="store_true", default = False,
-        help="Enable slowdown for jobs running different block geometries")
+        help="Enable running time slowdown for jobs on different block geometries")
         
     coscheduling_schemes = ["hold", "yield"]
     wass_schemes = ["cons", "aggr", "both"]
